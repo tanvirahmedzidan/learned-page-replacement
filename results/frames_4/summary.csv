@@ -1,0 +1,9 @@
+policy,phase,accesses,hits,faults,hit_ratio
+FIFO,before,5000,3170,1830,0.634
+FIFO,after,5000,804,4196,0.1608
+LRU,before,5000,3467,1533,0.6934
+LRU,after,5000,793,4207,0.1586
+Optimal,before,5000,4056,944,0.8112
+Optimal,after,5000,1985,3015,0.397
+Learned,before,5000,3840,1160,0.768
+Learned,after,5000,813,4187,0.1626

@@ -1,0 +1,8 @@
+Training candidate rows: 13950
+Frames: 6; length: 2000; evaluation seeds: 42–46
+
+Policy     Before hit%  After hit%  Before faults  After faults
+FIFO            75.46       24.36           1227          3782
+LRU             83.72       24.80            814          3760
+Optimal         89.02       52.06            549          2397
+Learned         86.58       25.04            671          3748

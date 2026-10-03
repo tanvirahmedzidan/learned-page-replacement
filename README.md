@@ -1,51 +1,78 @@
 # Learned Page Replacement
 
-CSE-307 Operating Systems · Section B · Track 1
+CSE-307: Operating Systems — Section B  
+Track 1: Learned Page Replacement
 
-This small Python simulation compares FIFO, LRU, Optimal and a decision-tree eviction policy. It does not change the computer's actual RAM.
+## About the project
 
-## Run it
+This Python project compares FIFO, LRU, Optimal and a decision-tree page replacement policy. It measures hit ratios and page faults before and after a change in the page-access pattern.
 
-Install Python 3.10 or newer. Extract the ZIP, open this folder in VS Code, and open its terminal.
+The program is a simulation; it does not change the computer's actual memory.
 
-```bash
-python -m venv .venv
-```
+## Setup and run
 
-Windows activation:
-```powershell
-.venv\Scripts\Activate.ps1
-```
+Python 3.10 or newer is required. Download the repository, extract it and open a terminal inside the folder containing main.py.
 
-If PowerShell blocks activation, skip activation and use `.venv\Scripts\python.exe` instead of `python` in the commands below. On macOS/Linux activate with `source .venv/bin/activate`.
+Install the required libraries:
 
 ```bash
 python -m pip install -r requirements.txt
-python main.py
+```
+
+Run the experiment with six frames:
+
+```bash
+python main.py --frames 6
+```
+
+Run it with four frames:
+
+```bash
+python main.py --frames 4
+```
+
+Run the tests:
+
+```bash
 python test_policies.py
 ```
 
-A different experiment:
-```bash
-python main.py --frames 4 --length 3000 --seed 50 --runs 5
-```
+New results are saved in `Learned_Page_Results` inside the current user's home folder. The program prints the full location after running.
 
-Results are overwritten on each run. Copy the results folder before running a different configuration if you want to keep both.
+Each run replaces the output files in that folder. Copy the results somewhere else before running another configuration if you want to keep both.
 
-## How it works
+## Page replacement policies
 
-- FIFO removes the page loaded earliest. A hit does not reset its loading time.
-- LRU removes the page used least recently.
-- Optimal removes the page whose next use is farthest away, including pages never used again. It uses future information and is an offline reference, not a deployable policy.
-- Learned uses a small decision tree to score each resident page. Its features are time since last access and access count in the previous 50 requests. The highest eviction score wins; ties use LRU.
+- **FIFO:** Removes the page that entered memory first.
+- **LRU:** Removes the page that was used least recently.
+- **Optimal:** Removes the page whose next use is farthest in the future. It is an offline reference because a real system cannot know future requests.
+- **Learned:** Uses a decision tree to score the resident pages and select an eviction candidate. Equal scores are resolved using LRU.
 
-The tree is trained on eight separate traces (seeds 100–107), using Optimal's victims as labels. Future accesses are used only to construct training labels and evaluate the Optimal reference. Learned-policy inference sees only past requests. The model is frozen during evaluation: it does not retrain after the shift. This makes its generalization limits visible.
+## Learned component
 
-Each trace has 24 possible page IDs. In the first half, 85% of requests target pages 0–3; the rest follow a sequential scan. In the second half, requests are uniformly random over all 24 pages. Memory is not reset at the shift. Each policy starts empty and receives the same trace.
+The model uses two features for each resident page:
 
-## Included run
+1. Number of requests since its last access.
+2. Access frequency within the previous 50 requests.
 
-Defaults: 6 frames, 2,000 requests per trace, five evaluation seeds (42–46). Each phase has 5,000 requests across the five runs. Hit ratio is hits / accesses; page faults are accesses minus hits.
+Training labels come from Optimal's eviction decisions on eight separate training traces, using seeds 100–107. Future information is used to create training labels, but the learned policy uses only past accesses when making decisions.
+
+The decision tree has a maximum depth of five and a minimum of 25 samples per leaf. The model stays fixed during evaluation; it is not retrained after the workload shift.
+
+## Experimental setup
+
+Each evaluation trace contains 2,000 requests over 24 possible pages.
+
+- **First half:** 85% of requests target a small working set of four pages; the remaining requests follow a sequential scan.
+- **Second half:** Requests become uniformly random across all 24 pages.
+
+Evaluation uses five seeds: 42–46. Every policy receives the same traces, starts with empty memory and keeps its memory contents at the shift.
+
+Two memory capacities were tested: four frames and six frames. The model is trained separately for each capacity.
+
+Each phase contains 5,000 requests across the five evaluation runs.
+
+## Results: six frames
 
 | Policy | Before hit ratio | After hit ratio | Before faults | After faults |
 |---|---:|---:|---:|---:|
@@ -54,31 +81,58 @@ Defaults: 6 frames, 2,000 requests per trace, five evaluation seeds (42–46). E
 | Optimal | 89.02% | 52.06% | 549 | 2,397 |
 | Learned | 86.58% | 25.04% | 671 | 3,748 |
 
-The learned policy loses 61.54 percentage points of hit ratio, the largest absolute drop in this run. Its advantage over LRU before the shift almost disappears afterward. Uniform random requests offer little useful historical signal; with six frames and 24 pages, roughly 25% hits are expected for an online policy. Optimal performs better because it knows the future. These results do not establish a general winner: only one shift scenario and one default frame count were tested, and small post-shift differences should not be treated as strong evidence.
+![Hit ratios with six frames](results/frames_6/hit_ratio.png)
+
+## Results: four frames
+
+| Policy | Before hit ratio | After hit ratio | Before faults | After faults |
+|---|---:|---:|---:|---:|
+| FIFO | 63.40% | 16.08% | 1,830 | 4,196 |
+| LRU | 69.34% | 15.86% | 1,533 | 4,207 |
+| Optimal | 81.12% | 39.70% | 944 | 3,015 |
+| Learned | 76.80% | 16.26% | 1,160 | 4,187 |
+
+![Hit ratios with four frames](results/frames_4/hit_ratio.png)
+
+## Discussion
+
+In both configurations, the learned policy has a higher hit ratio than FIFO and LRU before the shift. After requests become random, its advantage becomes much smaller.
+
+With six frames, the learned policy's hit ratio drops by 61.54 percentage points, the largest absolute drop among the four policies. With four frames, its drop is 60.54 percentage points, also the largest.
+
+Random requests provide little useful information about future accesses. Online policies therefore achieve roughly 25% hits with six frames and roughly 16.67% with four frames. Optimal performs better because it knows future requests.
+
+Reducing memory capacity increases total page faults for every policy in these experiments. Small differences between the online policies after the shift should not be treated as strong evidence of superiority.
+
+These experiments cover one synthetic shift scenario and two memory capacities. They do not establish which policy is best for every workload.
 
 ## Files
 
-- `main.py`: generator, policies, training, experiments and chart.
-- `test_policies.py`: known-reference checks, capacity checks and Optimal comparison.
-- `requirements.txt`: dependencies.
-- `results/summary.csv`: pooled before/after metrics.
-- `results/per_run.csv`: metrics for each evaluation seed.
-- `results/hit_ratio.png`: comparison chart.
-- `results/trace_*.csv`: exact evaluation inputs.
-- `results/steps_*.csv`: frame contents and eviction decisions for the first evaluation trace (step numbers start at zero).
-- `results/results.txt`: readable console summary.
-- `NEXT_STEPS_BANGLA.md`: what to do next.
+- `main.py`: Workload generation, policies, model training and experiments.
+- `test_policies.py`: Three tests covering a known reference trace, repeated accesses and Optimal's performance relative to FIFO and LRU.
+- `requirements.txt`: Required Python libraries.
+- `results/frames_4/`: Saved results for four frames.
+- `results/frames_6/`: Saved results for six frames.
 
-## AI assistance and student review
+Each results folder contains:
 
-ChatGPT generated the initial implementation, workload design, tests, documentation and included experiment summary, and ran the supplied configuration. These are supplied starting materials, not a claim that the student independently designed or analyzed the experiment. The student should review the design, run and verify experiments, and write their own analysis before submission, as required by the course brief. Keep this disclosure and update it accurately after making changes.
+- `hit_ratio.png`: Before/after comparison chart.
+- `summary.csv`: Combined results across five runs.
+- `per_run.csv`: Results for individual seeds.
+- `results.txt`: Readable summary.
+- `trace_*.csv`: Evaluation page-access traces.
+- `steps_*.csv`: Per-step decisions for the first evaluation trace.
 
-## Demo outline (3–5 minutes)
+Hit ratio is calculated as hits divided by requests. Page faults are requests minus hits.
 
-1. Explain a hit and a page fault, and why a full memory needs eviction.
-2. Show the four choices in `simulate` and the two input features in `features`.
-3. Explain the first-half working set and the second-half random shift.
-4. Run `python main.py`, then show `results/hit_ratio.png`.
-5. Explain why the learned policy loses its advantage and why Optimal is an offline reference.
+## AI assistance
 
-This ZIP is ready to upload to a GitHub repository, but no GitHub repository has been published. The separately required 2–3 page PDF report and printed copy are not included in this project package.
+ChatGPT assisted with the implementation, initial workload design, tests, documentation and interpretation of results. I ran the four-frame and six-frame experiments on my computer and ran the supplied tests; all three tests passed.
+
+## Class demo
+
+1. Explain page hits, page faults and eviction.
+2. Show the FIFO, LRU and Optimal implementations.
+3. Explain the decision tree's two features.
+4. Run the program and show the results.
+5. Discuss what changed after the workload shift.
